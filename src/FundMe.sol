@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 // Note: The AggregatorV3Interface might be at a different location than what was in the video!
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import {PriceConverter} from "./PriceConverter.sol";
 
 error FundMe__NotOwner();
+error FundMe__NoReentrancy();
 
 contract FundMe {
     using PriceConverter for uint256;
+    bool internal locked;
 
     mapping(address => uint256) private s_addressToAmountFunded;
     address[] private s_funders;
@@ -42,7 +44,15 @@ contract FundMe {
         _;
     }
 
-    function cheaperWithdraw() public onlyOwner {
+    modifier noReentrancy() {
+        // require(!locked, "No reentrancy");
+        if (locked) revert("No reentrancy");
+        locked = true;
+        _;
+        locked = false;
+    }
+
+    function cheaperWithdraw() public onlyOwner noReentrancy {
         uint256 funderLength = s_funders.length;
         for (
             uint256 funderIndex = 0;
@@ -59,7 +69,7 @@ contract FundMe {
         require(callSuccess, "Call failed");
     }
 
-    function withdraw() public onlyOwner {
+    function withdraw() public onlyOwner noReentrancy {
         for (
             uint256 funderIndex = 0;
             funderIndex < s_funders.length;
